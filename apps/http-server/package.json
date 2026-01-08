@@ -1,0 +1,16 @@
+{
+  "name": "http-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "@repo/typescript-config":"workspace:*"
+  },
+  "scripts": {
+    "build":""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
