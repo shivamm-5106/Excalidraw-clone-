@@ -8,8 +8,12 @@ export function middleware(req:Request,res:Response,next:NextFunction){
 
     const decoded = jwt.verify(token,"123123");
 
+    if (typeof decoded == "string"){
+        return;
+    }
+
     if (decoded){
-        req.userId = (decoded as JwtPayload).userId;
+        req.userId = decoded.userId;
         next();
     }
     else{
