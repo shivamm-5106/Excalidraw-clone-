@@ -6,6 +6,7 @@ import {CreateUserSchema,SignInSchema,CreateRoomSchema} from '@repo/common/types
 import {prismaClient } from "@repo/db/client"
 
 const app = express();
+app.use(express.json());
 
 app.post("/signin",(req,res)=>{
     const data = SignInSchema.safeParse(req.body);

@@ -3,20 +3,26 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "exports":{
-    "./client":"./src/index.ts"
+
+  "exports": {
+    "./client": "./dist/index.js"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
-    "@types/node": "^22.15.3"
+    "@repo/typescript-config": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/index.js",
+    "dev": "npm run build && npm run start"
+
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
-    "@prisma/client": "^7.2.0",
-    "dotenv": "^17.2.3",
-    "prisma": "^7.2.0"
+    "@prisma/client": "6.19.1",
+    "prisma": "6.19.1"
+
   }
 }
