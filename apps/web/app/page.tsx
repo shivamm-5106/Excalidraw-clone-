@@ -1,102 +1,73 @@
-import Image, { type ImageProps } from "next/image";
-import { Button } from "@repo/ui/button";
-import styles from "./page.module.css";
-
-type Props = Omit<ImageProps, "src"> & {
-  srcLight: string;
-  srcDark: string;
-};
-
-const ThemeImage = (props: Props) => {
-  const { srcLight, srcDark, ...rest } = props;
-
-  return (
-    <>
-      <Image {...rest} src={srcLight} className="imgLight" />
-      <Image {...rest} src={srcDark} className="imgDark" />
-    </>
-  );
-};
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { BACKEND_URL } from "./../config";
+import axios from "axios";
+import Link from "next/link";
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <ThemeImage
-          className={styles.logo}
-          srcLight="turborepo-dark.svg"
-          srcDark="turborepo-light.svg"
-          alt="Turborepo logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>apps/web/app/page.tsx</code>
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [roomName, setRoomName] = useState("");
+  const [joinRoomId, setJoinRoomId] = useState("");
+  const router = useRouter();
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new/clone?demo-description=Learn+to+implement+a+monorepo+with+a+two+Next.js+sites+that+has+installed+three+local+packages.&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F4K8ZISWAzJ8X1504ca0zmC%2F0b21a1c6246add355e55816278ef54bc%2FBasic.png&demo-title=Monorepo+with+Turborepo&demo-url=https%3A%2F%2Fexamples-basic-web.vercel.sh%2F&from=templates&project-name=Monorepo+with+Turborepo&repository-name=monorepo-turborepo&repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fturborepo%2Ftree%2Fmain%2Fexamples%2Fbasic&root-directory=apps%2Fdocs&skippable-integrations=1&teamSlug=vercel&utm_source=create-turbo"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://turborepo.com/docs?utm_source"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+  async function createRoom() {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.post(`${BACKEND_URL}/room`, { name: roomName }, {
+        headers: { Authorization: token }
+      });
+      router.push(`/room/${response.data.roomId}`);
+    } catch (e) {
+      alert("Please login first!");
+      router.push("/signin");
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-black text-white flex flex-col items-center pt-24 px-4">
+      {/* Navbar Placeholder */}
+      <div className="absolute top-4 right-4 flex gap-4">
+        <Link href="/signin" className="text-gray-400 hover:text-white transition">Sign In</Link>
+        <Link href="/signup" className="bg-white text-black px-4 py-2 rounded-full font-medium hover:bg-gray-200 transition">Sign Up</Link>
+      </div>
+
+      <h1 className="text-5xl font-extrabold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 text-transparent bg-clip-text">
+        Draw & Chat
+      </h1>
+      <p className="text-gray-400 mb-12 text-lg">Real-time collaboration made simple.</p>
+
+      <div className="flex flex-col md:flex-row gap-8 w-full max-w-4xl">
+        {/* Create Room Card */}
+        <div className="flex-1 bg-gray-900/50 border border-gray-800 p-8 rounded-2xl hover:border-blue-500/50 transition-all group">
+          <h2 className="text-2xl font-bold mb-4 text-blue-400 group-hover:text-blue-300">Create Room</h2>
+          <p className="text-gray-400 mb-6">Start a new session and invite your friends.</p>
+          <input
+            type="text" placeholder="Enter room name..."
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            onChange={(e) => setRoomName(e.target.value)}
+          />
+          <button onClick={createRoom} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
+            Create New Room
+          </button>
         </div>
-        <Button appName="web" className={styles.secondary}>
-          Open alert
-        </Button>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com/templates?search=turborepo&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+
+        {/* Join Room Card */}
+        <div className="flex-1 bg-gray-900/50 border border-gray-800 p-8 rounded-2xl hover:border-purple-500/50 transition-all group">
+          <h2 className="text-2xl font-bold mb-4 text-purple-400 group-hover:text-purple-300">Join Room</h2>
+          <p className="text-gray-400 mb-6">Enter an existing ID to jump into the action.</p>
+          <input
+            type="text" placeholder="Enter Room ID..."
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 mb-4 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            onChange={(e) => setJoinRoomId(e.target.value)}
           />
-          Examples
-        </a>
-        <a
-          href="https://turborepo.com?utm_source=create-turbo"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to turborepo.com →
-        </a>
-      </footer>
+          <button
+            onClick={() => router.push(`/room/${joinRoomId}`)}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg transition-colors"
+          >
+            Join Room
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
