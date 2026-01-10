@@ -25,7 +25,7 @@ model User{
   username   String    @unique
   password   String 
   name       String
-  photo      String?
+  avatar      String?
   rooms      Room[]
   chats      Chat[]
 }

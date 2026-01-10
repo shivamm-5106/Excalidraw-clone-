@@ -11,9 +11,8 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "start": "node dist/types.js",
-    "dev": "npm run build && npm run start"
-  },
+    "dev": "tsc -b -w"  
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
