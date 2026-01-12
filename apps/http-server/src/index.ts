@@ -75,6 +75,45 @@ app.post("/signin", async (req, res) => {
     });
 });
 
+app.listen(3001, () => {
+    console.log("Server running on port 3001");
+});
+
+
+
+app.get("/room/:roomSlug", async (req, res) => {
+    const { roomSlug } = req.params;
+
+    try {
+        const room = await prismaClient.room.findUnique({
+            where: {
+                slug: roomSlug
+            }
+        });
+
+        if (!room) {
+            return res.status(404).json({ message: "Room not found" });
+        }
+
+        const messages = await prismaClient.chat.findMany({
+            where: {
+                roomId: room.id
+            },
+            orderBy: {
+                id: "desc"
+            },
+            take: 50
+        });
+
+        res.json({
+            messages: messages.reverse()
+        });
+    } catch (e) {
+        res.status(500).json({ messages: [] });
+    }
+});
+
+
 app.post("/room", middleware, async (req, res) => {
     const parsedData = CreateRoomSchema.safeParse(req.body);
     if (!parsedData.success) {
@@ -83,50 +122,19 @@ app.post("/room", middleware, async (req, res) => {
 
 
     const userId = (req as any).userId;
-
     try {
         const room = await prismaClient.room.create({
             data: {
-                slug: parsedData.data.name,
+                slug: parsedData.data.name, 
                 adminId: userId
             }
         });
 
         res.json({
-            roomId: room.id
+            roomId: room.id,
+            slug: room.slug 
         });
     } catch(e) {
-        res.status(411).json({
-            message: "Room already exists"
-        })
-    }
-});
-
-app.listen(3001, () => {
-    console.log("Server running on port 3001");
-});
-
-app.get("/chats/:roomId", async (req, res) => {
-    const roomId = Number(req.params.roomId);
-
-    try {
-        const messages = await prismaClient.chat.findMany({
-            where: {
-                roomId: roomId
-            },
-            orderBy: {
-                id: "desc" 
-            },
-            take: 50
-        });
-
-
-        res.json({
-            messages: messages.reverse() 
-        });
-    } catch (e) {
-        res.status(500).json({
-            messages: []
-        });
+        res.status(411).json({ message: "Room already exists" })
     }
 });

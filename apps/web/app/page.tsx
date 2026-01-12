@@ -7,16 +7,16 @@ import Link from "next/link";
 
 export default function Home() {
   const [roomName, setRoomName] = useState("");
-  const [joinRoomId, setJoinRoomId] = useState("");
   const router = useRouter();
-
   async function createRoom() {
     try {
       const token = localStorage.getItem("token");
-      const response = await axios.post(`${BACKEND_URL}/room`, { name: roomName }, {
+      const response = await axios.post(`${BACKEND_URL}/room`, {
+        name: roomName 
+      }, {
         headers: { Authorization: token }
       });
-      router.push(`/room/${response.data.roomId}`);
+      router.push(`/canvas/${response.data.slug || roomName}`);
     } catch (e) {
       alert("Please login first!");
       router.push("/signin");
@@ -56,12 +56,12 @@ export default function Home() {
           <h2 className="text-2xl font-bold mb-4 text-purple-400 group-hover:text-purple-300">Join Room</h2>
           <p className="text-gray-400 mb-6">Enter an existing ID to jump into the action.</p>
           <input
-            type="text" placeholder="Enter Room ID..."
+            type="text" placeholder="Enter Room Name..."
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 mb-4 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-            onChange={(e) => setJoinRoomId(e.target.value)}
+            onChange={(e) => setRoomName(e.target.value)}
           />
           <button
-            onClick={() => router.push(`/room/${joinRoomId}`)}
+            onClick={() => router.push(`/canvas/${roomName}`)}
             className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg transition-colors"
           >
             Join Room

@@ -17,6 +17,7 @@ export default function Signup() {
             router.push("/signin");
         } catch (e) {
             alert("Error signing up");
+            console.log(e);
         }
     }
 
