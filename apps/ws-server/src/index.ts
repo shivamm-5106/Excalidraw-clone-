@@ -5,9 +5,32 @@ import { prismaClient } from "@repo/db/client";
 
 const wss = new WebSocketServer({ port: 8000 });
 
+type RectMessage = {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+};
+
+type WSMessage =
+    | {
+        type: "chat";
+        roomId: number;
+        message: RectMessage;
+    }
+    | {
+        type: "join_room";
+        roomId: number;
+    }
+    | {
+        type: "leave_room";
+        roomId: number;
+    };
+
+
 interface User {
     ws: WebSocket;
-    rooms: string[]; 
+    rooms: number[];
     userId: string;
 }
 
@@ -36,7 +59,7 @@ wss.on("connection", (socket, req) => {
     if (!url) return;
 
     const queryParams = new URLSearchParams(url.split('?')[1]);
-    const token = queryParams.get('token') || ""; 
+    const token = queryParams.get('token') || "";
 
     const userId = checkUser(token);
 
@@ -54,14 +77,14 @@ wss.on("connection", (socket, req) => {
     socket.on("message", async (data) => {
         let parsedMessage;
         try {
-            parsedMessage = JSON.parse(data.toString());
+            parsedMessage = JSON.parse(data.toString() ) as WSMessage;
         } catch (e) {
             return;
         }
 
         if (parsedMessage.type === "join_room") {
             const user = users.find(x => x.ws === socket);
-            user?.rooms.push(parsedMessage.roomId); 
+            user?.rooms.push(parsedMessage.roomId);
         }
 
         if (parsedMessage.type === "leave_room") {
@@ -75,16 +98,20 @@ wss.on("connection", (socket, req) => {
             const message = parsedMessage.message;
 
             try {
-                await prismaClient.chat.create({
+                await prismaClient.shape.create({
                     data: {
-                        roomId: Number(roomId),
-                        message: message,
+                        roomId: roomId,
+                        type: "RECT",
+                        x: message.x,
+                        y: message.y,
+                        width: message.width,
+                        height: message.height,
                         userId: userId
                     }
                 });
             } catch (e) {
                 console.error("Error storing message to DB", e);
-                return; 
+                return;
             }
 
 

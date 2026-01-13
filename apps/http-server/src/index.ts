@@ -106,6 +106,7 @@ app.get("/chats/:roomSlug", async (req, res) => {
         });
 
         res.json({
+            roomId  : room.id,
             messages: messages.reverse()
         });
     } catch (e) {

@@ -1,25 +1,26 @@
-"use client"
-import { useEffect, useRef } from "react";
-import { initDraw } from "../../../draw";
+
+
+import RoomCanvas from "../../../components/RoomCanvas";
+import { BACKEND_URL } from "../../../config";
+import axios from "axios";
 
 
 
-export default function Canvas() {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
 
-
-
-    useEffect(() => {
-        if (canvasRef.current) {
-            initDraw(canvasRef.current);
+export default async function Page({ params }
+    : {
+        params: {
+            slug: string
         }
-
-    }, [canvasRef]);
+    }
+) {
+    const slug = params.slug;
+    console.log(slug)
+    const res = await axios.get(`${BACKEND_URL}/chats/${slug}`);
+    const roomId = res.data.roomId;
 
     return (
-        <div>
-            <canvas ref={canvasRef} width={5000} height={5000}></canvas>
-        </div>
-    );
 
+        <RoomCanvas slug={slug} roomId={roomId}/>
+    );
 }
