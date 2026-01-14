@@ -1,6 +1,6 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs'; 
+import bcrypt from 'bcryptjs';
 import { middleware } from './middleware';
 import { JWT_SECRET } from '@repo/backend-common/config';
 import { CreateUserSchema, SignInSchema, CreateRoomSchema } from '@repo/common/types';
@@ -19,13 +19,13 @@ app.post("/signup", async (req, res) => {
     }
 
     try {
-        
+
         const hashedPassword = await bcrypt.hash(parsedData.data.password, 10);
 
         const user = await prismaClient.user.create({
             data: {
                 username: parsedData.data.username,
-                password: hashedPassword, 
+                password: hashedPassword,
                 name: parsedData.data.name,
             },
         });
@@ -81,13 +81,13 @@ app.listen(3001, () => {
 
 
 
-app.get("/chats/:roomSlug", async (req, res) => {
-    const { roomSlug } = req.params;
+app.get("/chats/:slug", async (req, res) => {
+    const { slug } = req.params;
 
     try {
         const room = await prismaClient.room.findUnique({
             where: {
-                slug: roomSlug
+                slug: slug
             }
         });
 
@@ -97,16 +97,22 @@ app.get("/chats/:roomSlug", async (req, res) => {
 
         const messages = await prismaClient.shape.findMany({
             where: {
-                roomId  : room.id
+                roomId: room.id
+            },
+            select: {
+                type: true,
+                x: true,
+                y: true,
+                width: true,
+                height: true
             },
             orderBy: {
-                id: "desc"
-            },
-            take: 50
+                createdAt: "asc"
+            }
         });
 
         res.json({
-            roomId  : room.id,
+            roomId: room.id,
             messages: messages.reverse()
         });
     } catch (e) {
@@ -126,16 +132,16 @@ app.post("/room", middleware, async (req, res) => {
     try {
         const room = await prismaClient.room.create({
             data: {
-                slug: parsedData.data.name, 
+                slug: parsedData.data.name,
                 adminId: userId
             }
         });
 
         res.json({
             roomId: room.id,
-            slug: room.slug 
+            slug: room.slug
         });
-    } catch(e) {
+    } catch (e) {
         res.status(411).json({ message: "Room already exists" })
     }
 });

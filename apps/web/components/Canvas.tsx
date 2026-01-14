@@ -3,14 +3,16 @@ import { initDraw } from "../draw";
 type CanvasProps = {
     slug: string;
     socket: WebSocket;
+    roomId: number;
 };
 
 
-export default function Canvas({ slug, socket }: CanvasProps) {
+export default function Canvas({ slug, socket,roomId }: CanvasProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    console.log("Canvas component rendered with slug:", slug, "and roomId:", roomId);
     useEffect(() => {
         if (canvasRef.current) {
-            initDraw(canvasRef.current, slug, socket);
+            initDraw(canvasRef.current, slug, socket,roomId);
         }
 
     }, [canvasRef]);

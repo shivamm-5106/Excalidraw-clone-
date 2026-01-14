@@ -35,6 +35,7 @@ interface User {
 }
 
 const users: User[] = [];
+console.log("WebSocket server started on port 8000", users);
 
 function checkUser(token: string): string | null {
     try {
@@ -55,6 +56,7 @@ function checkUser(token: string): string | null {
 }
 
 wss.on("connection", (socket, req) => {
+    console.log("New WebSocket connection");
     const url = req.url;
     if (!url) return;
 
@@ -75,15 +77,17 @@ wss.on("connection", (socket, req) => {
     });
 
     socket.on("message", async (data) => {
-        let parsedMessage;
+        let parsedMessage: WSMessage;
         try {
-            parsedMessage = JSON.parse(data.toString() ) as WSMessage;
+            parsedMessage = JSON.parse(data.toString());
         } catch (e) {
             return;
         }
 
         if (parsedMessage.type === "join_room") {
+            console.log("Received chat message:", parsedMessage);
             const user = users.find(x => x.ws === socket);
+            console.log("USER JOIN ROOM:");
             user?.rooms.push(parsedMessage.roomId);
         }
 
@@ -94,21 +98,22 @@ wss.on("connection", (socket, req) => {
         }
 
         if (parsedMessage.type === "chat") {
-            const roomId = parsedMessage.roomId;
+            console.log("Received chat message:", parsedMessage);
             const message = parsedMessage.message;
+            const roomId = parsedMessage.roomId;
 
             try {
                 await prismaClient.shape.create({
                     data: {
-                        roomId: roomId,
                         type: "RECT",
                         x: message.x,
                         y: message.y,
                         width: message.width,
                         height: message.height,
-                        userId: userId
+                        roomId: roomId,
                     }
                 });
+
             } catch (e) {
                 console.error("Error storing message to DB", e);
                 return;
@@ -128,7 +133,7 @@ wss.on("connection", (socket, req) => {
     });
 
 
-    socket.on("disconnect", () => {
+    socket.on("close", () => {
         const index = users.findIndex(x => x.ws === socket);
         if (index !== -1) {
             users.splice(index, 1);

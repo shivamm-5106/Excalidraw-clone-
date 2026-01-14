@@ -2,35 +2,34 @@ import axios from "axios";
 import { BACKEND_URL } from "../config";
 
 type Shape = {
-    type: "rect";
+    type: "RECT";
     x: number;
     y: number;
     width: number;
     height: number;
-} | {
-
-    type: "circle";
-    centerX: number;
-    centerY: number;
-    radius: number;
-
-};
+}
 
 
 
 
-export async function initDraw(canvas: HTMLCanvasElement, slug: string, socket: WebSocket) {
+export async function initDraw(canvas: HTMLCanvasElement, slug: string, socket: WebSocket, roomId: number) {
     const ctx = canvas.getContext("2d");
 
     let existingShape: Shape[] = await getExistingShapes(slug);
 
     if (!ctx) return;
 
+
     socket.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        existingShape.push(message.shape);
+        const data = JSON.parse(event.data);
         clearCanvas(ctx, canvas, existingShape);
-    }
+
+        if (data.type === "chat") {
+            existingShape.push(data.message);
+            clearCanvas(ctx, canvas, existingShape);
+        }
+    };
+
 
     clearCanvas(ctx, canvas, existingShape);
 
@@ -55,8 +54,8 @@ export async function initDraw(canvas: HTMLCanvasElement, slug: string, socket: 
         const rect = canvas.getBoundingClientRect();
         const width = e.clientX - rect.left - startX;
         const height = e.clientY - rect.top - startY;
-        const shape :Shape = {
-            type: "rect",
+        const shape: Shape = {
+            type: "RECT",
             x: startX,
             y: startY,
             width,
@@ -64,10 +63,20 @@ export async function initDraw(canvas: HTMLCanvasElement, slug: string, socket: 
         }
 
         existingShape.push(shape);
+
         socket.send(JSON.stringify({
-            type: "new_shape",
-            message:JSON.stringify(shape)}
-        ));
+            type: "chat",
+            roomId,   // MUST EXIST
+            message: {
+                x: shape.x,
+                y: shape.y,
+                width: shape.width,
+                height: shape.height,
+                type: "RECT"
+            }
+        }));
+
+
 
         clearCanvas(ctx, canvas, existingShape);
     });
@@ -97,73 +106,24 @@ function clearCanvas(
     ctx.strokeStyle = "white";
 
     existingShape.forEach((shape) => {
-        if (shape.type === "rect") {
-            ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-        } else {
-            ctx.beginPath();
-            ctx.arc(shape.centerX, shape.centerY, shape.radius, 0, Math.PI * 2);
-            ctx.stroke();
-        }
+        ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+
     });
 }
 
 async function getExistingShapes(slug: string) {
     const res = await axios.get(`${BACKEND_URL}/chats/${slug}`);
 
-    const shapes: Shape[] = res.data.shapes;
+    const shapes: Shape[] = res.data.messages;
 
-    const data = shapes.map((x) => {
-        // if (x.type === "rect") {
-        //     return {
-        //         type: "rect",
-        //         x: x.x,
-        //         y: x.y,
-        //         width: x.width,
-        //         height: x.height,
-        //     };
-        // } else {
-        //     return {
-        //         type: "circle",
-        //         centreX: x.centerX,
-        //         centerY: x.centerY,
-        //         radius: x.radius,
-        //     };
-        // }
-        return x;
-    });
+    if (!shapes) {
+        return [];
+    }
+
+    const data = shapes;
 
     return data;
 }
 
-// function drawShapes(
-//     ctx: CanvasRenderingContext2D,
-//     shapes: Shape[]
-// ) {
-    
-//     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-//     ctx.fillStyle = "black";
-//     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-//     ctx.strokeStyle = "white";
 
-//     existingShape.forEach((shape) => {
-//         if (shape.type === "rect") {
-//             ctx.strokeRect(
-//                 shape.x,
-//                 shape.y,
-//                 shape.width,
-//                 shape.height
-//             );
-//         } else {
-//             ctx.beginPath();
-//             ctx.arc(
-//                 shape.centerX,  
-//                 shape.centerY,
-//                 shape.radius,
-//                 0,
-//                 Math.PI * 2
-//             );
-//             ctx.stroke();
-//         }
-//     });
-// }

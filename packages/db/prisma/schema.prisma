@@ -28,7 +28,6 @@ model User{
   avatar      String?
   rooms      Room[]
   chats      Chat[]
-  shapes     Shape[]
 }
 
 model Room{
@@ -38,7 +37,6 @@ model Room{
   adminId    String
   admin      User      @relation(fields: [adminId], references: [id])
   chats      Chat[]
-  shapes     Shape[]
 }
 
 model Chat {
@@ -61,7 +59,6 @@ model Shape {
   id        String   @id @default(uuid())
 
   roomId    Int
-  userId    String
 
   type      ShapeType
 
@@ -78,9 +75,6 @@ model Shape {
 
   createdAt DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
-  room Room @relation(fields: [roomId], references: [id])
 
-  @@index([roomId])
-  @@index([userId])
+
 }
