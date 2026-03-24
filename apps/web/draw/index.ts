@@ -22,10 +22,12 @@ export async function initDraw(canvas: HTMLCanvasElement, slug: string, socket: 
 
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        clearCanvas(ctx, canvas, existingShape);
 
         if (data.type === "chat") {
             existingShape.push(data.message);
+            clearCanvas(ctx, canvas, existingShape);
+        }
+        if (data.type === "join_room") {
             clearCanvas(ctx, canvas, existingShape);
         }
     };
