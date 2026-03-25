@@ -1,7 +1,7 @@
 // app/canvas/[slug]/page.tsx
 
 import RoomCanvas from "../../../components/RoomCanvas";
-import { BACKEND_URL } from "../../../config";
+
 import axios from "axios";
 import { notFound } from "next/navigation";
 
@@ -13,7 +13,7 @@ export default async function Page({
     const {slug} = await params;
 
     try {
-        const res = await axios.get(`${BACKEND_URL}/chats/${slug}`);
+        const res = await axios.get(`${process.env.BACKEND_URL}/chats/${slug}`);
         const roomId = res.data.roomId;
 
         return <RoomCanvas slug={slug} roomId={roomId} />;

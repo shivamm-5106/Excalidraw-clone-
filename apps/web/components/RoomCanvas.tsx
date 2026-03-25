@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react";
-import { WS_URL } from "../config";
 import Canvas from "./Canvas";
 type CanvasProps = {
     slug: string;
@@ -17,7 +16,7 @@ export default function RoomCanvas({ slug, roomId }: CanvasProps) {
         if (!token) {
             throw new Error("No token found");
         }
-        const ws = new WebSocket(`${WS_URL}?token=${token}`);
+        const ws = new WebSocket(`${process.env.WS_URL}?token=${token}`);
         ws.onopen = () => {
             setSocket(ws);
             console.log("WebSocket connected");

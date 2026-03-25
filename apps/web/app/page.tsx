@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BACKEND_URL } from "./../config";
 import axios from "axios";
 import Link from "next/link";
 import { NextRequest, NextResponse } from "next/server";
@@ -17,8 +16,7 @@ export default function Home() {
 
       console.log(" Create Room Clicked");
       console.log("Room Name:", createRoomName);
-      console.log("Token:", token);
-      console.log("Backend URL:", BACKEND_URL);
+      
 
       if (!createRoomName.trim()) {
         alert("Enter room name");
@@ -32,7 +30,7 @@ export default function Home() {
       }
 
       const response = await axios.post(
-        `${BACKEND_URL}/room`,
+        `${process.env.BACKEND_URL}/room`,
         {
           name: createRoomName,
         },

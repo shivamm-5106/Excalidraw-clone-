@@ -3,7 +3,6 @@ import { useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BACKEND_URL } from "../../config";
 
 export default function Signin() {
     const [username, setUsername] = useState("");
@@ -12,7 +11,7 @@ export default function Signin() {
 
     async function handleSignin() {
         try {
-            const response = await axios.post(`${BACKEND_URL}/signin`, { username, password });
+            const response = await axios.post(`${process.env.BACKEND_URL}/signin`, { username, password });
             localStorage.setItem("token", response.data.token);
             router.push("/");
         } catch (e) {

@@ -3,7 +3,6 @@ import { useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BACKEND_URL } from "../../config";
 
 export default function Signup() {
     const [username, setUsername] = useState("");
@@ -13,7 +12,7 @@ export default function Signup() {
 
     async function handleSignup() {
         try {
-            await axios.post(`${BACKEND_URL}/signup`, { username, password, name });
+            await axios.post(`${process.env.BACKEND_URL}/signup`, { username, password, name });
             router.push("/signin");
         } catch (e) {
             alert("Error signing up");

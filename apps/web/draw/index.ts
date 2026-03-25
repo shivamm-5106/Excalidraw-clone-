@@ -1,5 +1,4 @@
 import axios from "axios";
-import { BACKEND_URL } from "../config";
 
 type Shape = {
     type: "RECT";
@@ -114,7 +113,7 @@ function clearCanvas(
 }
 
 async function getExistingShapes(slug: string) {
-    const res = await axios.get(`${BACKEND_URL}/chats/${slug}`);
+    const res = await axios.get(`${process.env.BACKEND_URL}/chats/${slug}`);
 
     const shapes: Shape[] = res.data.messages;
 
