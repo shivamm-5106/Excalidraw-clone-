@@ -16,7 +16,7 @@ export default function Home() {
 
       console.log(" Create Room Clicked");
       console.log("Room Name:", createRoomName);
-      
+
 
       if (!createRoomName.trim()) {
         alert("Enter room name");
@@ -30,7 +30,7 @@ export default function Home() {
       }
 
       const response = await axios.post(
-        `${process.env.BACKEND_URL}/room`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/room`,
         {
           name: createRoomName,
         },
@@ -95,7 +95,7 @@ export default function Home() {
       </p>
 
       <div className="flex flex-col md:flex-row gap-8 w-full max-w-4xl">
-        
+
         {/* Create Room */}
         <div className="flex-1 bg-gray-900/50 border border-gray-800 p-8 rounded-2xl hover:border-blue-500/50 transition-all group">
           <h2 className="text-2xl font-bold mb-4 text-blue-400 group-hover:text-blue-300">

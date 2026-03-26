@@ -5,18 +5,22 @@ import { prismaClient } from "@repo/db/client";
 
 const wss = new WebSocketServer({ port: Number(process.env.PORT) || 8000 });
 
-type RectMessage = {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+type ShapeMessage = {
+    type: "RECT" | "CIRCLE";
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    centerX?: number;
+    centerY?: number;
+    radius?: number;
 };
 
 type WSMessage =
     | {
         type: "chat";
         roomId: number;
-        message: RectMessage;
+        message: ShapeMessage;
     }
     | {
         type: "join_room";
@@ -58,8 +62,9 @@ function checkUser(token: string): string | null {
 wss.on("connection", (socket, req) => {
     console.log("New WebSocket connection");
     const origin = req.headers.origin;
-
-    if (!origin?.includes("https://excalidraw-clone-backend-7em0.onrender.com")) {
+    console.log("Connection origin:", process.env.BACKEND_URL, origin);
+    const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:3000";
+    if (origin && origin !== allowedOrigin) {
         socket.close();
         return;
     }
@@ -94,7 +99,9 @@ wss.on("connection", (socket, req) => {
                 console.log("Received chat message:", parsedMessage);
                 const user = users.find(x => x.ws === socket);
                 console.log("USER JOIN ROOM:");
-                user?.rooms.push(parsedMessage.roomId);
+                if (user && !user.rooms.includes(parsedMessage.roomId)) {
+                    user.rooms.push(parsedMessage.roomId);
+                }
             }
 
             if (parsedMessage.type === "leave_room") {
@@ -111,12 +118,16 @@ wss.on("connection", (socket, req) => {
                 try {
                     await prismaClient.shape.create({
                         data: {
-                            type: "RECT",
+                            type: message.type || "RECT",
                             x: message.x,
                             y: message.y,
                             width: message.width,
                             height: message.height,
+                            centerX: message.centerX,
+                            centerY: message.centerY,
+                            radius: message.radius,
                             roomId: roomId,
+                            userId: userId
                         }
                     });
 
@@ -127,7 +138,7 @@ wss.on("connection", (socket, req) => {
 
 
                 users.forEach(user => {
-                    if (user.rooms.includes(roomId)) {
+                    if (user.rooms.includes(roomId) && user.ws !== socket) {
                         user.ws.send(JSON.stringify({
                             type: "chat",
                             message: message,

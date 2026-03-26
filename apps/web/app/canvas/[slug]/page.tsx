@@ -10,11 +10,11 @@ export default async function Page({
 }: {
     params: { slug: string };
 }) {
-    const {slug} = await params;
+    const { slug } = await params;
 
     try {
-        const res = await axios.get(`${process.env.BACKEND_URL}/chats/${slug}`);
-        const roomId = res.data.roomId;
+        const res = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/room/${slug}`);
+        const roomId = res.data.room.id;
 
         return <RoomCanvas slug={slug} roomId={roomId} />;
     } catch (err) {

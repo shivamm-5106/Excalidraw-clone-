@@ -16,7 +16,7 @@ export default function RoomCanvas({ slug, roomId }: CanvasProps) {
         if (!token) {
             throw new Error("No token found");
         }
-        const ws = new WebSocket(`${process.env.WS_URL}?token=${token}`);
+        const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/${roomId}?token=${token}`);
         ws.onopen = () => {
             setSocket(ws);
             console.log("WebSocket connected");
@@ -29,7 +29,11 @@ export default function RoomCanvas({ slug, roomId }: CanvasProps) {
         ws.onerror = (error) => {
             console.error("WebSocket error:", error);
         }
-    }, []);
+
+        return () => {
+            ws.close();
+        };
+    }, [roomId]);
 
     if (!socket) {
         return <div>Loading...</div>

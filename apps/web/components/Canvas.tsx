@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from "react";
 import { initDraw } from "../draw";
 type CanvasProps = {
@@ -11,11 +13,14 @@ export default function Canvas({ slug, socket,roomId }: CanvasProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     console.log("Canvas component rendered with slug:", slug, "and roomId:", roomId);
     useEffect(() => {
-        if (canvasRef.current) {
-            initDraw(canvasRef.current, slug, socket,roomId);
-        }
+        if (!canvasRef.current) return;
+        const cleanup = initDraw(canvasRef.current, slug, socket, roomId);
 
-    }, [canvasRef]);
+        return () => {
+            cleanup();
+        };
+
+    }, [slug, socket, roomId]);
     return (
         <div>
             <canvas ref={canvasRef} width={5000} height={5000}></canvas>

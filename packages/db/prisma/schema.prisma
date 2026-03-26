@@ -28,6 +28,7 @@ model User{
   avatar      String?
   rooms      Room[]
   chats      Chat[]
+  shapes     Shape[]
 }
 
 model Room{
@@ -37,6 +38,7 @@ model Room{
   adminId    String
   admin      User      @relation(fields: [adminId], references: [id])
   chats      Chat[]
+  shapes     Shape[]
 }
 
 model Chat {
@@ -59,6 +61,10 @@ model Shape {
   id        String   @id @default(uuid())
 
   roomId    Int
+  room      Room     @relation(fields: [roomId], references: [id])
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
 
   type      ShapeType
 

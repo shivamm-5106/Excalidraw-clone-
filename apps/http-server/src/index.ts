@@ -81,7 +81,7 @@ app.listen(3001, () => {
 
 
 
-app.get("/chats/:slug", async (req, res) => {
+app.get("/chats/:slug", middleware, async (req, res) => {
     const { slug } = req.params;
 
     try {
@@ -100,11 +100,16 @@ app.get("/chats/:slug", async (req, res) => {
                 roomId: room.id
             },
             select: {
+                id: true,
                 type: true,
                 x: true,
                 y: true,
                 width: true,
-                height: true
+                height: true,
+                centerX: true,
+                centerY: true,
+                radius: true,
+                userId: true
             },
             orderBy: {
                 createdAt: "asc"
@@ -143,5 +148,19 @@ app.post("/room", middleware, async (req, res) => {
         });
     } catch (e) {
         res.status(411).json({ message: "Room already exists" })
+    }
+});
+
+app.get("/room/:slug", async (req, res) => {
+    try {
+        const room = await prismaClient.room.findUnique({
+            where: { slug: req.params.slug }
+        });
+        if (!room) {
+            return res.status(404).json({ message: "Room not found" });
+        }
+        res.json({ room });
+    } catch (e) {
+        res.status(500).json({ message: "Server error" });
     }
 });

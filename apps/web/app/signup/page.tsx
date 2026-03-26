@@ -12,9 +12,10 @@ export default function Signup() {
 
     async function handleSignup() {
         try {
-            await axios.post(`${process.env.BACKEND_URL}/signup`, { username, password, name });
+            await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/signup`, { username, password, name });
             router.push("/signin");
         } catch (e) {
+            console.log("URL:", process.env.NEXT_PUBLIC_BACKEND_URL);
             alert("Error signing up");
             console.log(e);
         }
