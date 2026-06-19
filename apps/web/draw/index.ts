@@ -1,145 +1,293 @@
 import axios from "axios";
+import { DrawingState } from "./state";
+import { renderCanvas } from "./renderer";
+import { getTool } from "./tools/registry";
+import type { ShapeType, Shape } from "./types";
+import { deserializeShape } from "./types";
 
-type Shape = {
-    type: "RECT";
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-}
-
-
-
-
-export function initDraw(canvas: HTMLCanvasElement, slug: string, socket: WebSocket, roomId: number) {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return () => {};
-
-    let existingShapes: Shape[] = [];
-
-    getExistingShapes(slug).then((shapes) => {
-        existingShapes = shapes;
-        clearCanvas(ctx, canvas, existingShapes);
-    });
-
-    socket.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-
-            if (data.type === "chat") {
-                const parsedShape = data.message;
-                existingShapes.push(parsedShape);
-                clearCanvas(ctx, canvas, existingShapes);
-            }
-            if (data.type === "join_room") {
-                clearCanvas(ctx, canvas, existingShapes);
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
-    clearCanvas(ctx, canvas, existingShapes);
-
-    let clicked = false;
-    let startX = 0;
-    let startY = 0;
-
-    const handleMouseDown = (e: MouseEvent) => {
-        const rect = canvas.getBoundingClientRect();
-        clicked = true;
-        startX = e.clientX - rect.left;
-        startY = e.clientY - rect.top;
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-        clicked = false;
-        const rect = canvas.getBoundingClientRect();
-        const width = e.clientX - rect.left - startX;
-        const height = e.clientY - rect.top - startY;
-
-        const shape: Shape = {
-            type: "RECT",
-            x: startX,
-            y: startY,
-            width,
-            height,
-        };
-
-        existingShapes.push(shape);
-
-        socket.send(JSON.stringify({
-            type: "chat",
-            roomId,
-            message: {
-                type: "RECT",
-                x: shape.x,
-                y: shape.y,
-                width: shape.width,
-                height: shape.height
-            }
-        }));
-
-        clearCanvas(ctx, canvas, existingShapes);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-        if (!clicked) return;
-        const rect = canvas.getBoundingClientRect();
-        const width = e.clientX - startX - rect.left;
-        const height = e.clientY - startY - rect.top;
-
-        clearCanvas(ctx, canvas, existingShapes);
-        ctx.strokeStyle = "white";
-        ctx.strokeRect(startX, startY, width, height);
-    };
-
-    canvas.addEventListener("mousedown", handleMouseDown);
-    canvas.addEventListener("mouseup", handleMouseUp);
-    canvas.addEventListener("mousemove", handleMouseMove);
-
-    return () => {
-        canvas.removeEventListener("mousedown", handleMouseDown);
-        canvas.removeEventListener("mouseup", handleMouseUp);
-        canvas.removeEventListener("mousemove", handleMouseMove);
-        socket.onmessage = null;
-    };
-}
-
-function clearCanvas(
-    ctx: CanvasRenderingContext2D,
-    canvas: HTMLCanvasElement,
-    existingShape: Shape[]
+export function initDraw(
+  canvas: HTMLCanvasElement,
+  slug: string,
+  socket: WebSocket,
+  roomId: number
 ) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return () => {};
 
-    ctx.strokeStyle = "white";
+  const state = new DrawingState();
+  let cleanupFns: (() => void)[] = [];
 
-    existingShape.forEach((shape) => {
-        ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+  loadShapes(slug, state, ctx, canvas);
 
-    });
-}
-
-async function getExistingShapes(slug: string) {
-    const res = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/chats/${slug}`, {
-        headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
+  socket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === "chat") {
+        const msg = data.message;
+        const shape = parseShapeFromMessage(msg);
+        if (shape) {
+          const existing = state.getShapes().find(s => s.id === shape.id);
+          if (!existing) {
+            state.shapes.push(shape);
+            renderCanvas(state, ctx, canvas);
+          }
         }
-    });
+      }
+      if (data.type === "join_room") {
+        renderCanvas(state, ctx, canvas);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
-    const shapes: Shape[] = res.data.messages;
+  function getCanvasPoint(e: MouseEvent): { x: number; y: number } {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+  }
 
-    if (!shapes) {
-        return [];
+  function dispatchMouseEvent(type: "down" | "move" | "up", e: MouseEvent) {
+    const tool = getTool(state.activeTool);
+    const pt = getCanvasPoint(e);
+    const customEvent = {
+      type: e.type,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      offsetX: pt.x,
+      offsetY: pt.y,
+      shiftKey: e.shiftKey,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey,
+      altKey: e.altKey,
+      button: e.button,
+      buttons: e.buttons,
+      preventDefault: () => e.preventDefault(),
+      stopPropagation: () => e.stopPropagation(),
+    } as unknown as MouseEvent;
+
+    canvas.style.cursor = tool.cursor;
+
+    switch (type) {
+      case "down":
+        tool.onMouseDown(customEvent, state, canvas, ctx!);
+        break;
+      case "move":
+        tool.onMouseMove(customEvent, state, canvas, ctx!);
+        break;
+      case "up":
+        tool.onMouseUp(customEvent, state, canvas, ctx!);
+        break;
+    }
+  }
+
+  const handleMouseDown = (e: MouseEvent) => {
+    if (e.button === 1) {
+      state.setTool("pan");
+      getTool("pan").onMouseDown(e, state, canvas, ctx);
+      return;
+    }
+    if (e.button === 0) {
+      dispatchMouseEvent("down", e);
+    }
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    dispatchMouseEvent("move", e);
+  };
+
+  const handleMouseUp = (e: MouseEvent) => {
+    if (e.button === 1) {
+      getTool("pan").onMouseUp(e, state, canvas, ctx);
+      if (state.activeTool !== "pan") {
+        canvas.style.cursor = state.getCursorForTool();
+      }
+      return;
+    }
+    dispatchMouseEvent("up", e);
+  };
+
+  const handleWheel = (e: WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = -e.deltaY * 0.001;
+      const newZoom = Math.max(0.1, Math.min(5, state.viewport.zoom * (1 + delta)));
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const newOffsetX = mx - (mx - state.viewport.offsetX) * (newZoom / state.viewport.zoom);
+      const newOffsetY = my - (my - state.viewport.offsetY) * (newZoom / state.viewport.zoom);
+      state.setViewport({ zoom: newZoom, offsetX: newOffsetX, offsetY: newOffsetY });
+      renderCanvas(state, ctx, canvas);
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+
+    switch (e.key.toLowerCase()) {
+      case "v": state.setTool("select"); break;
+      case "r": state.setTool("rectangle"); break;
+      case "d": state.setTool("diamond"); break;
+      case "o": state.setTool("ellipse"); break;
+      case "a": state.setTool("arrow"); break;
+      case "l": state.setTool("line"); break;
+      case "t": state.setTool("text"); break;
+      case "p": state.setTool("freehand"); break;
+      case "e": state.setTool("eraser"); break;
+      case "h": state.setTool("pan"); break;
+      case "delete":
+      case "backspace":
+        if (state.selectedIds.size > 0) {
+          state.deleteSelectedShapes();
+          renderCanvas(state, ctx, canvas);
+          sendShapeUpdate(socket, roomId, state.getShapes());
+        }
+        break;
+      case "escape":
+        state.clearSelection();
+        renderCanvas(state, ctx, canvas);
+        break;
     }
 
-    const data = shapes;
+    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (state.performRedo()) {
+          renderCanvas(state, ctx, canvas);
+          sendShapeUpdate(socket, roomId, state.getShapes());
+        }
+      } else {
+        if (state.performUndo()) {
+          renderCanvas(state, ctx, canvas);
+          sendShapeUpdate(socket, roomId, state.getShapes());
+        }
+      }
+    }
 
-    return data;
+    if ((e.ctrlKey || e.metaKey) && e.key === "d") {
+      e.preventDefault();
+      if (state.selectedIds.size > 0) {
+        state.duplicateSelected();
+        renderCanvas(state, ctx, canvas);
+        sendShapeUpdate(socket, roomId, state.getShapes());
+      }
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+      e.preventDefault();
+      state.selectAll();
+      renderCanvas(state, ctx, canvas);
+    }
+
+    if (e.key === " " && !e.repeat) {
+      e.preventDefault();
+      state.setTool("pan");
+    }
+  };
+
+  const handleKeyUp = (e: KeyboardEvent) => {
+    if (e.key === " " && state.activeTool === "pan") {
+      state.setTool("select");
+    }
+  };
+
+  canvas.addEventListener("mousedown", handleMouseDown);
+  canvas.addEventListener("mousemove", handleMouseMove);
+  canvas.addEventListener("mouseup", handleMouseUp);
+  canvas.addEventListener("wheel", handleWheel, { passive: false });
+  window.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("keyup", handleKeyUp);
+
+  renderCanvas(state, ctx, canvas);
+
+  const unsubscribe = state.subscribe(() => {
+    renderCanvas(state, ctx, canvas);
+  });
+
+  return () => {
+    canvas.removeEventListener("mousedown", handleMouseDown);
+    canvas.removeEventListener("mousemove", handleMouseMove);
+    canvas.removeEventListener("mouseup", handleMouseUp);
+    canvas.removeEventListener("wheel", handleWheel);
+    window.removeEventListener("keydown", handleKeyDown);
+    window.removeEventListener("keyup", handleKeyUp);
+    socket.onmessage = null;
+    unsubscribe();
+  };
 }
 
+async function loadShapes(slug: string, state: DrawingState, ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
+  try {
+    const res = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/chats/${slug}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    });
+    const messages: any[] = res.data.messages || [];
+    const shapes: Shape[] = [];
+    for (const msg of messages) {
+      const shape = parseShapeFromMessage(msg);
+      if (shape) shapes.push(shape);
+    }
+    state.setShapes(shapes);
+    renderCanvas(state, ctx, canvas);
+  } catch (e) {
+    console.error("Failed to load shapes:", e);
+  }
+}
 
+function parseShapeFromMessage(msg: any): Shape | null {
+  try {
+    let type = msg.type as string;
+    if (type === "CIRCLE") type = "ELLIPSE";
 
+    if (msg.data) {
+      const data = typeof msg.data === "string" ? JSON.parse(msg.data) : msg.data;
+      return deserializeShape(type as ShapeType, data, msg.id);
+    }
+    if (type === "RECT" && msg.x !== undefined) {
+      return deserializeShape("RECT", {
+        x: msg.x, y: msg.y, width: msg.width, height: msg.height,
+        strokeColor: msg.strokeColor || "#ffffff",
+        fillColor: msg.fillColor || "transparent",
+        strokeWidth: msg.strokeWidth || 2,
+        opacity: msg.opacity || 100,
+        strokeStyle: msg.strokeStyle || "solid",
+      }, msg.id);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function sendShapeUpdate(socket: WebSocket, roomId: number, shapes: Shape[]) {
+  if (socket.readyState !== WebSocket.OPEN) return;
+  for (const shape of shapes) {
+    socket.send(JSON.stringify({
+      type: "chat",
+      roomId,
+      message: {
+        id: shape.id,
+        type: shape.type,
+        data: {
+          x: shape.x,
+          y: shape.y,
+          width: "width" in shape ? shape.width : undefined,
+          height: "height" in shape ? shape.height : undefined,
+          points: "points" in shape ? shape.points : undefined,
+          text: "text" in shape ? shape.text : undefined,
+          fontSize: "fontSize" in shape ? shape.fontSize : undefined,
+          fontFamily: "fontFamily" in shape ? shape.fontFamily : undefined,
+          strokeColor: shape.strokeColor,
+          fillColor: shape.fillColor,
+          strokeWidth: shape.strokeWidth,
+          opacity: shape.opacity,
+          strokeStyle: shape.strokeStyle,
+        },
+      },
+    }));
+  }
+}

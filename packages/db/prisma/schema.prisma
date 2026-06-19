@@ -54,33 +54,21 @@ model Chat {
 
 enum ShapeType {
   RECT
-  CIRCLE
+  ELLIPSE
+  DIAMOND
+  LINE
+  ARROW
+  TEXT
+  FREEHAND
 }
 
 model Shape {
   id        String   @id @default(uuid())
-
   roomId    Int
   room      Room     @relation(fields: [roomId], references: [id])
-
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-
   type      ShapeType
-
-  // Rectangle
-  x         Float?
-  y         Float?
-  width     Float?
-  height    Float?
-
-  // Circle
-  centerX   Float?
-  centerY   Float?
-  radius    Float?
-
+  data      Json     @default("{}")
   createdAt DateTime @default(now())
-
-
-
 }

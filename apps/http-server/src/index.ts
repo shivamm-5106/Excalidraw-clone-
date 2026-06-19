@@ -102,13 +102,7 @@ app.get("/chats/:slug", middleware, async (req, res) => {
             select: {
                 id: true,
                 type: true,
-                x: true,
-                y: true,
-                width: true,
-                height: true,
-                centerX: true,
-                centerY: true,
-                radius: true,
+                data: true,
                 userId: true
             },
             orderBy: {
@@ -116,9 +110,15 @@ app.get("/chats/:slug", middleware, async (req, res) => {
             }
         });
 
+        const parsed = messages.map(m => {
+            const rawData = typeof m.data === "string" ? JSON.parse(m.data) : (m.data || {});
+            const type = m.type === "CIRCLE" ? "ELLIPSE" : m.type;
+            return { id: m.id, type, data: rawData, userId: m.userId };
+        });
+
         res.json({
             roomId: room.id,
-            messages: messages.reverse()
+            messages: parsed.reverse()
         });
     } catch (e) {
         res.status(500).json({ messages: [] });
@@ -146,8 +146,12 @@ app.post("/room", middleware, async (req, res) => {
             roomId: room.id,
             slug: room.slug
         });
-    } catch (e) {
-        res.status(411).json({ message: "Room already exists" })
+    } catch (e: any) {
+        console.error("Room creation error:", e?.message || e);
+        if (e?.code === "P2002") {
+            return res.status(409).json({ message: "Room already exists" });
+        }
+        res.status(500).json({ message: "Room creation failed" });
     }
 });
 

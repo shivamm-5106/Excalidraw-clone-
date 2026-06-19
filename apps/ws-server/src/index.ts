@@ -6,14 +6,9 @@ import { prismaClient } from "@repo/db/client";
 const wss = new WebSocketServer({ port: Number(process.env.PORT) || 8000 });
 
 type ShapeMessage = {
-    type: "RECT" | "CIRCLE";
-    x?: number;
-    y?: number;
-    width?: number;
-    height?: number;
-    centerX?: number;
-    centerY?: number;
-    radius?: number;
+    id: string;
+    type: "RECT" | "ELLIPSE" | "DIAMOND" | "LINE" | "ARROW" | "TEXT" | "FREEHAND";
+    data: Record<string, unknown>;
 };
 
 type WSMessage =
@@ -31,7 +26,6 @@ type WSMessage =
         roomId: number;
     };
 
-
 interface User {
     ws: WebSocket;
     rooms: number[];
@@ -39,20 +33,13 @@ interface User {
 }
 
 const users: User[] = [];
-console.log("WebSocket server started on port 8000", users);
+console.log("WebSocket server started on port 8000");
 
 function checkUser(token: string): string | null {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-
-        if (typeof decoded == "string") {
-            return null;
-        }
-
-        if (!decoded || !decoded.userId) {
-            return null;
-        }
-
+        if (typeof decoded == "string") return null;
+        if (!decoded || !decoded.userId) return null;
         return decoded.userId;
     } catch (e) {
         return null;
@@ -60,101 +47,84 @@ function checkUser(token: string): string | null {
 }
 
 wss.on("connection", (socket, req) => {
-    console.log("New WebSocket connection");
     const origin = req.headers.origin;
-    console.log("Connection origin:", process.env.BACKEND_URL, origin);
     const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:3000";
     if (origin && origin !== allowedOrigin) {
         socket.close();
         return;
     }
-        const url = req.url;
-        if (!url) return;
+    const url = req.url;
+    if (!url) return;
 
-        const queryParams = new URLSearchParams(url.split('?')[1]);
-        const token = queryParams.get('token') || "";
+    const queryParams = new URLSearchParams(url.split('?')[1]);
+    const token = queryParams.get('token') || "";
+    const userId = checkUser(token);
 
-        const userId = checkUser(token);
+    if (!userId) {
+        socket.close();
+        return;
+    }
 
-        if (!userId) {
-            socket.close();
+    users.push({ userId, rooms: [], ws: socket });
+
+    socket.on("message", async (data) => {
+        let parsedMessage: WSMessage;
+        try {
+            parsedMessage = JSON.parse(data.toString());
+        } catch (e) {
             return;
         }
 
-        users.push({
-            userId,
-            rooms: [],
-            ws: socket
-        });
+        if (parsedMessage.type === "join_room") {
+            const user = users.find(x => x.ws === socket);
+            if (user && !user.rooms.includes(parsedMessage.roomId)) {
+                user.rooms.push(parsedMessage.roomId);
+            }
+        }
 
-        socket.on("message", async (data) => {
-            let parsedMessage: WSMessage;
+        if (parsedMessage.type === "leave_room") {
+            const user = users.find(x => x.ws === socket);
+            if (!user) return;
+            user.rooms = user.rooms.filter(x => x !== parsedMessage.roomId);
+        }
+
+        if (parsedMessage.type === "chat") {
+            const message = parsedMessage.message;
+            const roomId = parsedMessage.roomId;
+
             try {
-                parsedMessage = JSON.parse(data.toString());
+                const dataValue = message.data || {};
+                const dataStr = JSON.stringify(dataValue);
+
+                await prismaClient.shape.create({
+                    data: {
+                        type: message.type,
+                        data: dataStr,
+                        roomId: roomId,
+                        userId: userId
+                    }
+                });
             } catch (e) {
+                console.error("Error storing message to DB", e);
                 return;
             }
 
-            if (parsedMessage.type === "join_room") {
-                console.log("Received chat message:", parsedMessage);
-                const user = users.find(x => x.ws === socket);
-                console.log("USER JOIN ROOM:");
-                if (user && !user.rooms.includes(parsedMessage.roomId)) {
-                    user.rooms.push(parsedMessage.roomId);
+            users.forEach(user => {
+                if (user.rooms.includes(roomId) && user.ws !== socket) {
+                    user.ws.send(JSON.stringify({
+                        type: "chat",
+                        message: message,
+                        roomId: roomId
+                    }));
                 }
-            }
-
-            if (parsedMessage.type === "leave_room") {
-                const user = users.find(x => x.ws === socket);
-                if (!user) return;
-                user.rooms = user.rooms.filter(x => x !== parsedMessage.roomId);
-            }
-
-            if (parsedMessage.type === "chat") {
-                console.log("Received chat message:", parsedMessage);
-                const message = parsedMessage.message;
-                const roomId = parsedMessage.roomId;
-
-                try {
-                    await prismaClient.shape.create({
-                        data: {
-                            type: message.type || "RECT",
-                            x: message.x,
-                            y: message.y,
-                            width: message.width,
-                            height: message.height,
-                            centerX: message.centerX,
-                            centerY: message.centerY,
-                            radius: message.radius,
-                            roomId: roomId,
-                            userId: userId
-                        }
-                    });
-
-                } catch (e) {
-                    console.error("Error storing message to DB", e);
-                    return;
-                }
-
-
-                users.forEach(user => {
-                    if (user.rooms.includes(roomId) && user.ws !== socket) {
-                        user.ws.send(JSON.stringify({
-                            type: "chat",
-                            message: message,
-                            roomId: roomId
-                        }));
-                    }
-                });
-            }
-        });
-
-
-        socket.on("close", () => {
-            const index = users.findIndex(x => x.ws === socket);
-            if (index !== -1) {
-                users.splice(index, 1);
-            }
-        });
+            });
+        }
     });
 
+    socket.on("close", () => {
+        const index = users.findIndex(x => x.ws === socket);
+        if (index !== -1) {
+            users.splice(index, 1);
+        }
+    });
+});
