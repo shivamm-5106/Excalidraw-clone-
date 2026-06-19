@@ -112,7 +112,7 @@ app.get("/chats/:slug", middleware, async (req, res) => {
 
         const parsed = messages.map(m => {
             const rawData = typeof m.data === "string" ? JSON.parse(m.data) : (m.data || {});
-            const type = m.type === "CIRCLE" ? "ELLIPSE" : m.type;
+            const type = (m.type as string) === "CIRCLE" ? "ELLIPSE" : m.type;
             return { id: m.id, type, data: rawData, userId: m.userId };
         });
 
