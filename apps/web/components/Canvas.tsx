@@ -13,30 +13,36 @@ type CanvasProps = {
 
 export default function Canvas({ slug, socket, roomId }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const toolPanel = useMemo(() => (
-    <div style={{ position: "absolute", top: 8, left: 8, display: "flex", gap: 8, zIndex: 10 }}>
-      <Toolbar />
-      <PropertyPanel />
-    </div>
-  ), []);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
-    const cleanup = initDraw(canvasRef.current, slug, socket, roomId);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const updateSize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    updateSize();
+    window.addEventListener("resize", updateSize);
+
+    const cleanup = initDraw(canvas, slug, socket, roomId);
+
     return () => {
       cleanup();
+      window.removeEventListener("resize", updateSize);
     };
   }, [slug, socket, roomId]);
 
   return (
-    <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden" }}>
-      {toolPanel}
+    <div ref={containerRef} style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: 8, left: 8, display: "flex", gap: 8, zIndex: 10 }}>
+        <Toolbar />
+        <PropertyPanel />
+      </div>
       <canvas
         ref={canvasRef}
-        width={5000}
-        height={5000}
-        style={{ display: "block", width: "100vw", height: "100vh", background: "#1e1e1e" }}
+        style={{ display: "block", background: "#1e1e1e" }}
       />
     </div>
   );

@@ -18,6 +18,16 @@ type WSMessage =
         message: ShapeMessage;
     }
     | {
+        type: "delete_shape";
+        roomId: number;
+        shapeId: string;
+    }
+    | {
+        type: "sync_shapes";
+        roomId: number;
+        shapes: ShapeMessage[];
+    }
+    | {
         type: "join_room";
         roomId: number;
     }
@@ -96,12 +106,18 @@ wss.on("connection", (socket, req) => {
                 const dataValue = message.data || {};
                 const dataStr = JSON.stringify(dataValue);
 
-                await prismaClient.shape.create({
-                    data: {
+                await prismaClient.shape.upsert({
+                    where: { id: message.id },
+                    create: {
+                        id: message.id,
                         type: message.type,
                         data: dataStr,
                         roomId: roomId,
                         userId: userId
+                    },
+                    update: {
+                        type: message.type,
+                        data: dataStr,
                     }
                 });
             } catch (e) {
@@ -115,6 +131,68 @@ wss.on("connection", (socket, req) => {
                         type: "chat",
                         message: message,
                         roomId: roomId
+                    }));
+                }
+            });
+        }
+
+        if (parsedMessage.type === "delete_shape") {
+            const roomId = parsedMessage.roomId;
+            const shapeId = parsedMessage.shapeId;
+
+            try {
+                await prismaClient.shape.delete({
+                    where: { id: shapeId }
+                });
+            } catch (e) {
+                console.error("Error deleting shape from DB", e);
+                return;
+            }
+
+            users.forEach(user => {
+                if (user.rooms.includes(roomId) && user.ws !== socket) {
+                    user.ws.send(JSON.stringify({
+                        type: "delete_shape",
+                        shapeId,
+                        roomId
+                    }));
+                }
+            });
+        }
+
+        if (parsedMessage.type === "sync_shapes") {
+            const roomId = parsedMessage.roomId;
+            const shapes = parsedMessage.shapes;
+
+            try {
+                await prismaClient.shape.deleteMany({
+                    where: { roomId }
+                });
+
+                for (const shape of shapes) {
+                    const dataValue = shape.data || {};
+                    const dataStr = JSON.stringify(dataValue);
+                    await prismaClient.shape.create({
+                        data: {
+                            id: shape.id,
+                            type: shape.type,
+                            data: dataStr,
+                            roomId,
+                            userId
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Error syncing shapes to DB", e);
+                return;
+            }
+
+            users.forEach(user => {
+                if (user.rooms.includes(roomId) && user.ws !== socket) {
+                    user.ws.send(JSON.stringify({
+                        type: "sync_shapes",
+                        roomId,
+                        shapes
                     }));
                 }
             });

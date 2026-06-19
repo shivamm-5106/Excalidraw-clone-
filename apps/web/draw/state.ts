@@ -3,6 +3,7 @@ import { DEFAULT_STYLING, DEFAULT_VIEWPORT } from "./types";
 import { createHistory, pushHistory, undo, redo, canUndo, canRedo } from "./utils/history";
 
 export type StateChangeListener = () => void;
+export type ShapeAction = "add" | "update" | "delete" | "sync";
 
 export class DrawingState {
   shapes: Shape[] = [];
@@ -11,6 +12,8 @@ export class DrawingState {
   styling: StylingOptions = { ...DEFAULT_STYLING };
   viewport: Viewport = { ...DEFAULT_VIEWPORT };
   showGrid: boolean = false;
+  onNetworkSend: ((shape: Shape, action: ShapeAction) => void) | null = null;
+  onNetworkSync: ((shapes: Shape[]) => void) | null = null;
 
   private history = createHistory();
   private listeners: StateChangeListener[] = [];
@@ -53,6 +56,7 @@ export class DrawingState {
   addShape(shape: Shape) {
     this.shapes.push(shape);
     this.history = pushHistory(this.history, this.shapes);
+    this.onNetworkSend?.(shape, "add");
     this.notify();
   }
 
@@ -64,9 +68,11 @@ export class DrawingState {
   }
 
   deleteSelectedShapes() {
+    const deleted = this.shapes.filter(s => this.selectedIds.has(s.id));
     this.shapes = this.shapes.filter(s => !this.selectedIds.has(s.id));
     this.selectedIds.clear();
     this.history = pushHistory(this.history, this.shapes);
+    for (const s of deleted) this.onNetworkSend?.(s, "delete");
     this.notify();
   }
 
@@ -122,6 +128,7 @@ export class DrawingState {
     this.shapes = shapes;
     this.history.index--;
     this.selectedIds.clear();
+    this.onNetworkSync?.(this.shapes);
     this.notify();
     return true;
   }
@@ -132,6 +139,7 @@ export class DrawingState {
     this.shapes = shapes;
     this.history.index++;
     this.selectedIds.clear();
+    this.onNetworkSync?.(this.shapes);
     this.notify();
     return true;
   }
@@ -152,6 +160,14 @@ export class DrawingState {
     this.notify();
   }
 
+  commitMove() {
+    this.history = pushHistory(this.history, this.shapes);
+    for (const id of this.selectedIds) {
+      const s = this.shapes.find(shape => shape.id === id);
+      if (s) this.onNetworkSend?.(s, "update");
+    }
+  }
+
   getShapes(): Shape[] {
     return this.shapes;
   }
@@ -166,10 +182,6 @@ export class DrawingState {
     this.notify();
   }
 
-  commitMove() {
-    this.history = pushHistory(this.history, this.shapes);
-  }
-
   duplicateSelected() {
     const newShapes: Shape[] = [];
     for (const s of this.shapes) {
@@ -182,6 +194,7 @@ export class DrawingState {
     for (const s of newShapes) {
       this.shapes.push(s);
       this.selectedIds.add(s.id);
+      this.onNetworkSend?.(s, "add");
     }
     this.history = pushHistory(this.history, this.shapes);
     this.notify();

@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
-import { NextRequest, NextResponse } from "next/server";
 
 export default function Home() {
   const [createRoomName, setCreateRoomName] = useState("");

@@ -63,7 +63,7 @@ enum ShapeType {
 }
 
 model Shape {
-  id        String   @id @default(uuid())
+  id        String   @id
   roomId    Int
   room      Room     @relation(fields: [roomId], references: [id])
   userId    String

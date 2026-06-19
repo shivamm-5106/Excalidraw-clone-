@@ -2,8 +2,8 @@ import axios from "axios";
 import { DrawingState } from "./state";
 import { renderCanvas } from "./renderer";
 import { getTool } from "./tools/registry";
-import type { ShapeType, Shape } from "./types";
-import { deserializeShape } from "./types";
+import type { ShapeType, Shape, StylingOptions } from "./types";
+import { deserializeShape, serializeShape } from "./types";
 
 export function initDraw(
   canvas: HTMLCanvasElement,
@@ -15,9 +15,33 @@ export function initDraw(
   if (!ctx) return () => {};
 
   const state = new DrawingState();
-  let cleanupFns: (() => void)[] = [];
 
   loadShapes(slug, state, ctx, canvas);
+
+  state.onNetworkSend = (shape, action) => {
+    if (socket.readyState !== WebSocket.OPEN) return;
+    if (action === "delete") {
+      socket.send(JSON.stringify({
+        type: "delete_shape",
+        roomId,
+        shapeId: shape.id,
+      }));
+    } else {
+      socket.send(JSON.stringify({
+        type: "chat",
+        roomId,
+        message: { id: shape.id, type: shape.type, data: serializeShape(shape) },
+      }));
+    }
+  };
+  state.onNetworkSync = (shapes) => {
+    if (socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({
+      type: "sync_shapes",
+      roomId,
+      shapes: shapes.map(s => ({ id: s.id, type: s.type, data: serializeShape(s) })),
+    }));
+  };
 
   socket.onmessage = (event) => {
     try {
@@ -26,12 +50,24 @@ export function initDraw(
         const msg = data.message;
         const shape = parseShapeFromMessage(msg);
         if (shape) {
-          const existing = state.getShapes().find(s => s.id === shape.id);
-          if (!existing) {
+          const existing = state.getShapes().findIndex(s => s.id === shape.id);
+          if (existing !== -1) {
+            state.shapes[existing] = shape;
+          } else {
             state.shapes.push(shape);
-            renderCanvas(state, ctx, canvas);
           }
+          renderCanvas(state, ctx, canvas);
         }
+      }
+      if (data.type === "delete_shape") {
+        state.shapes = state.shapes.filter(s => s.id !== data.shapeId);
+        state.selectedIds.delete(data.shapeId);
+        renderCanvas(state, ctx, canvas);
+      }
+      if (data.type === "sync_shapes") {
+        const shapes = data.shapes.map((msg: any) => parseShapeFromMessage(msg)).filter(Boolean);
+        state.setShapes(shapes);
+        renderCanvas(state, ctx, canvas);
       }
       if (data.type === "join_room") {
         renderCanvas(state, ctx, canvas);
@@ -144,7 +180,6 @@ export function initDraw(
         if (state.selectedIds.size > 0) {
           state.deleteSelectedShapes();
           renderCanvas(state, ctx, canvas);
-          sendShapeUpdate(socket, roomId, state.getShapes());
         }
         break;
       case "escape":
@@ -158,12 +193,10 @@ export function initDraw(
       if (e.shiftKey) {
         if (state.performRedo()) {
           renderCanvas(state, ctx, canvas);
-          sendShapeUpdate(socket, roomId, state.getShapes());
         }
       } else {
         if (state.performUndo()) {
           renderCanvas(state, ctx, canvas);
-          sendShapeUpdate(socket, roomId, state.getShapes());
         }
       }
     }
@@ -173,7 +206,6 @@ export function initDraw(
       if (state.selectedIds.size > 0) {
         state.duplicateSelected();
         renderCanvas(state, ctx, canvas);
-        sendShapeUpdate(socket, roomId, state.getShapes());
       }
     }
 
@@ -263,31 +295,4 @@ function parseShapeFromMessage(msg: any): Shape | null {
   }
 }
 
-function sendShapeUpdate(socket: WebSocket, roomId: number, shapes: Shape[]) {
-  if (socket.readyState !== WebSocket.OPEN) return;
-  for (const shape of shapes) {
-    socket.send(JSON.stringify({
-      type: "chat",
-      roomId,
-      message: {
-        id: shape.id,
-        type: shape.type,
-        data: {
-          x: shape.x,
-          y: shape.y,
-          width: "width" in shape ? shape.width : undefined,
-          height: "height" in shape ? shape.height : undefined,
-          points: "points" in shape ? shape.points : undefined,
-          text: "text" in shape ? shape.text : undefined,
-          fontSize: "fontSize" in shape ? shape.fontSize : undefined,
-          fontFamily: "fontFamily" in shape ? shape.fontFamily : undefined,
-          strokeColor: shape.strokeColor,
-          fillColor: shape.fillColor,
-          strokeWidth: shape.strokeWidth,
-          opacity: shape.opacity,
-          strokeStyle: shape.strokeStyle,
-        },
-      },
-    }));
-  }
-}
+
